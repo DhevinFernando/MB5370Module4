@@ -1,0 +1,58 @@
+//ASSIGNMENT 1 MODULE 4
+
+Map.setOptions('SATELLITE') //switch map view to satellite imagery
+
+// Import the ETOPO1 data
+var etopoRaw = ee.Image("NOAA/NGDC/ETOPO1");
+print('raw ETOPO1 properties', etopoRaw);
+//Map.addLayer (etopoRaw)
+
+// Select the bedrock band of this imagery
+var bedrock = etopoRaw.select('bedrock');
+//Map.addLayer (bedrock);
+
+// thresholding for Hadal (>6000m)
+var hadal = bedrock.lt(-6000).selfMask();
+
+//thresholding for Abyssal Plains (3000-6000m)
+var abyssal = bedrock.lte(-3000).and(bedrock.gte(-6000)).selfMask();
+
+//thresholding for Continental Island Slopes (250-3000m)
+var continentalIsland = bedrock.lte(-250).and(bedrock.gte(-3000)).selfMask();
+
+//thresholding for Submarine Canyons (deeper than 200m, slopes of >6 degrees)
+//but first we must find the slope
+var terrain = ee.Terrain.products(bedrock);
+print ('terrain', terrain ) // print it to see what's inside
+var slope = terrain.select(['slope']) // this is slope
+//Map.addLayer (slope, {palette: ['white', 'darkred', 'black'], min:0, max:45}, 'slope')
+var hillshade = terrain.select(['hillshade']) // this is hillshade
+//Map.addLayer (hillshade)
+//now we threshold
+var canyons = bedrock.lt(-3000).and(slope.gt(6)).selfMask();
+
+// Add these variables as layers
+var bedrockVis = {
+  hadal: '40004b',
+  abyssal: '0571b0',  
+  continentalIsland: '92c5de',   
+  canyons: 'f46d43',  
+};//set the visual parameters
+
+Map.addLayer(hadal, {palette:'bd0026'}, 'Hadal (>6000m)'); // add hadal layer
+Map.addLayer(abyssal, {palette:'fd8d3c'}, 'Abyssal Plains (3000-6000m)'); // add abyssal plains layer
+Map.addLayer(continentalIsland, {palette:'ffffcc'}, 'Continental Island Slopes (250-3000m)'); // add continental island slopes layer
+Map.addLayer(canyons, {palette:'800026'}, 'Submarine Canyons (deeper than 200m, slopes of >6 degrees)'); // add submarine canyons layer
+
+// Now lets add the vector dataset (protected areas, filtered to marine protected areas)
+// // now add data on marine protected areas
+var wdpa = ee.FeatureCollection("WCMC/WDPA/current/polygons")
+print(wdpa)
+print (wdpa.limit(5))// this didnt allow me to determine what the name of the REALM property was for mpas so i clicked on a known mpa (paravi dupatha or pigeon island national park in sri lanka) and found the realm name was 'Marine'
+//Map.addLayer(wdpa, {color: 'cyan'}, 'Global Protected Areas')
+
+
+// Filter for only Marine Protected Areas
+var mpa = wdpa.filter(ee.Filter.eq('REALM', 'Marine'));
+//add to map
+Map.addLayer(mpa, {color: 'cyan'}, 'Marine Protected Areas')

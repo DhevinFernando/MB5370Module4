@@ -1,0 +1,39 @@
+//first line of code, it is a string
+print('Hello, World!')
+//comment with two slashes
+//variables used for storing objects, define with keyword var, each statement of script should end with semicolon though earth engine doesnt require it
+var the_answer = 42; //this variable is a number
+print(the_answer) //print the value within the variable
+//assign text san francisco to the variable city and print the string stored in it
+var city = 'san francisco';
+print(city);
+// create a variable named population and store a number within it
+var population = 873965;
+print(population); // print the number stored in the variable
+print('the value for the population variable is', population);// a print function with a descriptive text
+// now lets make a list in a variable called cities and print it
+var cities = ['San Francisco', 'Los Angeles', 'New York', 'Atlanta'];
+print(cities);
+//key value pairs where you can create a dictionary with curly brackets {}, lets create an object called cityData
+var cityData = {
+  'city': 'san francisco',
+  'coordinates': [-122.4194, 37.7749],
+  'population': 873965
+};
+print(cityData) // the labels generated in this print output are the keys
+
+//now lets run some functions, functions in earth engine use the keyword function
+var my_hello_function = function(string) {
+  return 'Hello ' + string + '!';
+};
+print(my_hello_function('Sri Lanka')); //this function allows to print a string of text and input your own string into a pre-existing sentence
+
+//here is another example of a function, function(name) defines the functions argument/ the variable u need to input
+var greet = function(name) {
+    return 'Hello ' + name;
+};
+print(greet('World'));
+print(greet('Readers'));
+
+
+

@@ -1,0 +1,47 @@
+Map.setOptions('SATELLITE')
+var snazzy = require("users/aazuspan/snazzy:styles");
+snazzy.addStyle("https://snazzymaps.com/style/72543/assassins-creed-iv", "Blank");
+
+Map.setCenter(81.20115344604426, 8.72193, 18);
+
+// var allencoral = ee.Image("ACA/reef_habitat/v2_0")
+// print(allencoral)
+// Map.addLayer(allencoral)
+// Map.addLayer(allencoral, {min: 0, max: 255}, 'reef visualization');
+
+//select single image from NOAA dataset and filter by arbitrary day and scale the sst values
+var singleDaySST = ee.ImageCollection("NOAA/CDR/OISST/V2_1")
+  .filterDate('2026-06-01', '2026-06-02')
+  .first()
+  .select('sst')
+  .multiply(0.01); // Scale factor for NOAA OISST
+
+print(singleDaySST)
+// Define color palette and temperature range (°C)
+var visParams = {
+  min: 0,
+  max: 30,
+  palette: ['000000', '005aff', '43c8c8', 'fff700', 'ff0000']
+};
+
+// add map layer
+Map.addLayer(singleDaySST, visParams, 'SST (°C)');
+
+// // now add data on marine protected areas
+var globalMpa = ee.FeatureCollection("WCMC/WDPA/current/polygons")
+print(globalMpa)
+// Map.addLayer(globalMpa, {color: 'cyan'}, 'Marine Protected Areas')
+
+
+// Filter for Marine Protected Areas in Sri Lanka
+var slmarineOnly = globalMpa.filter(ee.Filter.and(
+  ee.Filter.eq('ISO3', 'LKA'),
+  ee.Filter.eq('REALM', 'Marine')
+  ));
+// var slmarineOnly = globalMpa.filter(ee.Filter.and(
+//   ee.Filter.eq('ISO3', 'LKA'),
+//   ee.Filter.eq('REALM', 'Marine')
+// ));
+
+print(slmarineOnly);
+Map.addLayer(slmarineOnly, {color: 'cyan'}, 'Marine Protected Areas');

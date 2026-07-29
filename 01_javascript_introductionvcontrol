@@ -1,0 +1,59 @@
+//first line of code, it is a string
+print('Hello, World!')
+//comment with two slashes
+//variables used for storing objects, define with keyword var, each statement of script should end with semicolon though earth engine doesnt require it
+var the_answer = 42; //this variable is a number
+print(the_answer) //print the value within the variable
+//assign text san francisco to the variable city and print the string stored in it
+var city = 'san francisco';
+print(city);
+// create a variable named population and store a number within it
+var population = 873965;
+print(population); // print the number stored in the variable
+print('the value for the population variable is', population);// a print function with a descriptive text
+// now lets make a list in a variable called cities and print it
+var cities = ['San Francisco', 'Los Angeles', 'New York', 'Atlanta'];
+print(cities);
+//key value pairs where you can create a dictionary with curly brackets {}, lets create an object called cityData
+var cityData = {
+  'city': 'san francisco',
+  'coordinates': [-122.4194, 37.7749],
+  'population': 873965
+};
+print(cityData) // the labels generated in this print output are the keys
+
+//now lets run some functions, functions in earth engine use the keyword function
+var my_hello_function = function(string) {
+  return 'Hello ' + string + '!';
+};
+print(my_hello_function('Sri Lanka')); //this function allows to print a string of text and input your own string into a pre-existing sentence
+
+//here is another example of a function, function(name) defines the functions argument/ the variable u need to input
+var greet = function(name) {
+    return 'Hello ' + name;
+};
+print(greet('World'));
+print(greet('Readers')); 
+
+//lets do some calculations
+// first lets store some variables
+var a = 1;
+var b = 2;
+
+//now we add them
+print (a)
+var result = a + b
+print (result, 'javascript way')
+
+//but this just uses javascript so lets get earth engine to do the heavy lifting
+var a1 = ee.Number(1) //earth engine functions to store a number
+var a2 = ee.Number(3)
+var result2 = print (a1.add(a2)) //earth engine function for addition think of it like piping, always remember to add the . between variables thats the pipe
+print (result, 'Earth Engine way');
+
+//create a List of numbers using an earth engine function representing years from 1980 to 2020, counting by 5, by calling this function with the following values: start = 1980, end = 2020, and step = 5.
+var yearList = ee.List.sequence(1980, 2020, 5);
+print(yearList);
+
+
+
