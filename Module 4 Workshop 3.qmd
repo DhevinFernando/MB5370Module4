@@ -1,0 +1,175 @@
+---
+title: "Module 4 Workshop 3"
+author: "Dhevin Fernando"
+format: html
+editor: visual
+---
+
+## Module 3: Working With A Dataset on Night Lights
+
+``` bash
+Map.setOptions('SATELLITE')
+var snazzy = require("users/aazuspan/snazzy:styles");
+snazzy.addStyle("https://snazzymaps.com/style/72543/assassins-creed-iv", "Blank");
+
+// lets look at the population dataset
+var population = ee.ImageCollection("CIESIN/GPWv411/GPW_Population_Count")
+print (population)
+
+// now pull from years we want
+var population_2000 = ee.Image("CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2000_30_sec")
+print (population_2000)
+var population_2015 = ee.Image("CIESIN/GPWv411/GPW_Population_Count/gpw_v4_population_count_rev11_2015_30_sec")
+print (population_2015)
+
+//create a color ramp and visualise
+var popVis = {
+  'max': 1000.0,
+  'palette': [
+    'ffffe7',
+    '86a192',
+    '509791',
+    '307296',
+    '2c4484',
+    '000066'
+  ],
+  'min': 0.0
+};
+//Map.addLayer(population_2000, popVis, 'population_count_2000');
+//Map.addLayer(population_2015, popVis, 'population_count_2015');
+
+//now lets work with night light data
+// Nightlights
+var nl = ee.ImageCollection("NOAA/DMSP-OLS/NIGHTTIME_LIGHTS")
+print (nl)
+
+//now we pick the years we want
+// get two images for start and end
+
+var nl_2000 = ee.Image('NOAA/DMSP-OLS/NIGHTTIME_LIGHTS/F142000').select(['stable_lights'], ['nightlight']) //select and rename
+var nl_2013 = ee.Image('NOAA/DMSP-OLS/NIGHTTIME_LIGHTS/F182013').select(['stable_lights'], ['nightlight']) //2013 as thats the last year data is available for
+
+print ('nightlight 2000 processed', nl_2000)
+print ('nightlight 2013 processed', nl_2013)
+
+var nighttimeLightsVis = {
+  'max': 63.0,
+  'palette': [
+    '000000', // Black  (0   - No light)
+    '220000', // Dark Maroon
+    '7A0000', // Dark Red
+    'E63900', // Red-Orange
+    'FFA500', // Orange
+    'FFFF00'  // Yellow (63  - Highest intensity)
+  ],
+  'min': 1.0
+};
+
+//Map.addLayer(nl_2000, nighttimeLightsVis, 'Nighttime Lights 2000');
+//Map.addLayer(nl_2013, nighttimeLightsVis, 'Nighttime Lights 2013');
+
+var grid5 = ee.FeatureCollection("users/murrnick/mb5370/worldgrid_5deg") // 5 degree grid
+print(grid5)
+var grid2 = ee.FeatureCollection("users/murrnick/mb5370/worldgrid_2deg") // 2 degree grid
+print(grid2)
+var grid1 = ee.FeatureCollection("users/murrnick/mb5370/worldgrid_1deg") // 1 degree grid
+print(grid1)
+
+//Map.addLayer (grid1, {color:'green'}, 'grid data')
+
+// Import a coastline
+var coast = ee.FeatureCollection('projects/UQ_intertidal/dataMasks/naturalEarthCoastline_v1')
+print(coast)
+//Map.addLayer(coast, {color:'yellow'}, 'coast')
+
+// spatial filter so that grid gets filtered to coasts
+//var grid_coast = grid1.filter(ee.Filter.bounds(coast))
+//Map.addLayer (grid_coast, {color:'green'}, 'coastal grids')
+
+// Filter ecoregions to bounds
+var minigrid_coast = grid5
+.filter(ee.Filter.bounds(coast))
+//.filter(ee.Filter.bounds(geometry)); // let's limit it for testing, comment this line in and out to go global
+//Map.addLayer(minigrid_coast, {color:'firebrick'}, 'coastal grid subset')
+
+//subtract recent pixel values from historical ones
+//first for pop change
+var pop_change = population_2015
+  .subtract(population_2000)
+  .clip(minigrid_coast)
+//Map.addLayer (pop_change, {palette:  ['red', 'black', 'lime'], min: -500, max: 500}, 'pop_change', true, 0.9)
+
+//then for nightlights
+var nl_change = nl_2013
+  .subtract(nl_2000)
+  .clip(minigrid_coast)
+//Map.addLayer (nl_change, {palette:  ['red', 'black', 'yellow'], min: -50, max: 50}, 'nl_change', true, 0.9)
+
+//compute average change of the two variables
+// average change in nightlights per ecoregion
+var nl_changePerEcoregion = nl_change.reduceRegions({
+  collection: minigrid_coast, 
+  reducer: ee.Reducer.mean(), 
+  scale: 1000, // note computing at a larger scale for speed
+});
+
+print (nl_changePerEcoregion.first()) // look at properties of the first one
+
+// average change in population per ecoregion
+var pop_changePerEcoregion = pop_change.reduceRegions({
+  collection: minigrid_coast, 
+  reducer: ee.Reducer.mean(), 
+  scale: 1000, // note computing at a larger scale for speed
+});
+
+print (pop_changePerEcoregion.first()) // look at properties of the first one
+
+// Export the result
+// Approx 10-20 minute export for scale = 1000.
+// Export the result to asset
+Export.table.toAsset({
+  collection: pop_changePerEcoregion, //
+  description: 'export_pop_toAsset',
+  assetId:'pop_changePerEcoregion'
+});
+
+Export.table.toAsset({
+  collection: nl_changePerEcoregion, //
+  description: 'export_nl_toAsset',
+  assetId:'nl_changePerEcoregion'
+});
+
+// Visualise your data
+var pop_result = ee.FeatureCollection("projects/mb5370-module-4-dhevin/assets/pop_changePerEcoregion")
+Map.addLayer(pop_result)
+print (pop_result.limit(5))
+print (pop_result.sort('mean', false).limit(10))
+var pop_highestchange = pop_result.sort('mean', false).first()
+Map.addLayer(ee.Feature(pop_highestchange) ,{color: 'red'} ,'highest change population') //highest change in pop sighted south of india (value =359.02)
+
+var nl_result = ee.FeatureCollection("projects/mb5370-module-4-dhevin/assets/nl_changePerEcoregion")
+Map.addLayer(nl_result)
+print (nl_result.limit(5))
+print (nl_result.sort('mean', false).limit(10))
+var nl_highestchange = nl_result.sort('mean', false).first()
+Map.addLayer(ee.Feature(nl_highestchange), {color: 'red'},  'highest change night lights') // highest change in night lights sighted in beijing value is 7.87
+
+// Visualise result
+
+var empty1 = ee.Image().byte() // make an empty image
+var palette = ['green','yellow', 'orange', 'red'];
+var popChangePerEcoregion = empty1.paint({
+  featureCollection: pop_result,
+  color:'mean'
+})
+
+Map.addLayer(popChangePerEcoregion, {max:360, palette: palette}, 'popChange_result')
+
+var empty2 = ee.Image().byte() // make an empty image
+var nlChangePerEcoregion = empty2.paint({
+  featureCollection: nl_result,
+  color:'mean'
+})
+
+Map.addLayer(nlChangePerEcoregion, {max:8, min:0, palette: palette}, 'nlChange_result')
+```

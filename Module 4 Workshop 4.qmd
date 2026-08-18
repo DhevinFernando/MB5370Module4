@@ -1,0 +1,123 @@
+---
+title: "Module 4 Workshop 4"
+author: "Dhevin Fernando"
+format: html
+editor: visual
+---
+
+## Allen Coral Atlas
+
+``` bash
+//Workshop 4
+
+//Step 1 Global Variables
+var distance = 800 // metres we are allowed to snorkel from the station
+
+//Step 2 research station locations
+
+//Heron Island
+Map.setCenter(151.91400746, -23.44100605, 15);
+
+//Hamilton Island
+//Map.setCenter(148.95757924, -20.34639327, 24);
+
+//Lizard Island
+//Map.setCenter(145.44647541, -14.66767257, 24);
+
+//Daydream Island
+//Map.setCenter(148.81555647, -20.25161732, 24);
+
+//Orpheus Island
+//Map.setCenter(146.49992691, -18.63411616, 24);
+
+//HIMB, Kane'ohe bay, hawaii
+//Map.setCenter(-157.7915, 21.4377, 24)
+
+//ICAR-CIARI / Fisheries Research Station (Minicoy Atoll, Lakshadweep)
+//Map.setCenter( 73.0479, 8.3022, 24)
+
+//Koh Tao/New Heaven Coral Reef Research Center
+//Map.setCenter( 99.8509, 10.1017, 24)
+
+//Phuket Marine Biological Center (PMBC)
+//Map.setCenter( 98.41261, 7.79527 , 24)
+
+//now build feature collection
+var field_stations = ee.FeatureCollection([Heron, Orpheus, Lizard, Hamilton, Daydream, Orpheus, Kaneohe, KohTao, Minicoy, Phuket])
+print (field_stations.first())
+
+// Importing ACA data
+var allenCoral = ee.Image("ACA/reef_habitat/v2_0")
+print(allenCoral)
+//Map.addLayer(allenCoral)
+
+// Selecting only the benthic band
+var allenBenthic = allenCoral.select("benthic")
+print(allenBenthic)
+
+//further filtering the benthic band to algae and coral
+var coralAlgae = allenBenthic.eq(15).selfMask()
+print(coralAlgae)
+//Map.addLayer(coralAlgae)
+Map.addLayer(coralAlgae, {palette:['pink', 'green']}, 'coral and algae')
+
+//test buffer on one field station
+//var buffered = ee.Feature(field_stations.first()).buffer(distance)// buffers only one feature.
+//Map.addLayer(buffered)
+
+//now lets make a function that operates as a for loop, buffering everything in our feature collection
+// write a function that applies a buffer
+// To run as a .map - looping over all stations - we will need to make a function
+var bufferer = function (feature) {
+  var buffered = feature.buffer(distance)
+  return buffered;
+}
+// Use .map to work one station at a time
+var bufferedStations = field_stations.map(bufferer) 
+print(bufferedStations, 'buffered stations')
+Map.addLayer(bufferedStations, {color:'yellow'}, 'buffered')
+
+// Lets calculate the area of coral within the buffered regions
+// Compute area of coral within buffer
+var coral_area = coralAlgae // binary 1 == coral
+  .multiply (ee.Image.pixelArea()) // get the area of each pixel
+  .reduceRegions({
+  reducer: ee.Reducer.sum(), // sum all pixel areas together
+  collection: bufferedStations,
+  scale:5 
+})
+// Check it out using addLayer and print- view the area of coral within each buffer
+print(coral_area, 'coral area')
+print (coral_area.sort('sum', false)) //The research station at phuket has the most coral with 561786m2 of coral cover, Daydream island has the least at 36576m2
+Map.addLayer(coral_area, {color:'pink'}, 'area of coral within buffer')
+
+// now lets export this to google drive
+// Export.table.toDrive({
+//   collection: coral_area, //FYI - type: featureCollection
+//   description: 'exportToDrive',
+//   fileNamePrefix: 'research_stations_MB370',
+//   fileFormat:'CSV'
+// })
+
+
+var exportImage = coralAlgae.clip(coral_area)
+Map.addLayer(exportImage)
+
+
+// Get the buffer geometry for Phuket
+var phuketGeometry = Phuket.buffer(distance).geometry();
+
+// Clip image to Phuket buffer
+var exportImage = coralAlgae.clip(phuketGeometry);
+Map.addLayer(exportImage, {}, 'Phuket Coral');
+
+// Export to Google Drive
+// Export.image.toDrive({
+//   image: exportImage,
+//   description: 'exportImage_Phuket',
+//   fileNamePrefix: 'aca_phuket',
+//   region: phuketGeometry,
+//   fileFormat: 'GeoTIFF',
+//   scale: 5
+// });
+```

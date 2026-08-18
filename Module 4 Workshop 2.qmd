@@ -1,0 +1,299 @@
+---
+title: "Module 4 Workshop 1 pt2 and 2"
+author: "Dhevin Fernando"
+format: html
+editor: visual
+---
+
+## Workshop 1 and 2: Spatial Visualisations of Mt Taranaki
+
+``` bash
+//2.10 Visualising data in Earth Engine
+Map.setOptions('SATELLITE') //switches map view to satellite imagery
+var snazzy = require("users/aazuspan/snazzy:styles");
+snazzy.addStyle("https://snazzymaps.com/style/48750/blank-map", "Blank"); //enables a layout from snazzy maps
+Map.setCenter(174.0638, -39.298, 11);// this sets the location to these specific coords, in this case mt taranaki
+//lets add some elevation data
+// Import SRTM data
+var dataset = ee.Image("CGIAR/SRTM90_V4")
+print (dataset) // Look at the data properties
+// now add it to the map
+////Map.addLayer(dataset)
+// its flat gray now so lets do some visualisation
+//Map.addLayer(dataset, {min: 0, max: 2500}, 'custom visualization');// second param is visual params it let’s you set the minimum pixel value and the maximum pixel values to display
+//you can add more to the function to change its colouration and gradient
+//Map.addLayer(dataset, {min: 0, max: 2500, palette: ['blue', 'green', 'red']},'custom palette');
+// you can also choose to seperate the visParams from the function and run it seperately
+// Set up visualisation parameters
+var elevationVis = {
+  min: 0,
+  max: 2500,
+  palette: ['0000ff', '00ffff', 'ffff00', 'ff0000', 'ffffff']
+};
+
+// Add the data layer to the map
+//Map.addLayer(dataset, elevationVis, 'Elevation');
+//using the inspector, mt taranaki is 2478m high and the SRTM data is an image, there is no data in the ocean as it is not part of the dataset
+
+//now lets work with a vector dataset
+// Add the protected planet data
+var protected_areas = ee.FeatureCollection("WCMC/WDPA/current/polygons")
+//lets add it to the map
+//Map.addLayer(protected_areas)
+//and add some color
+//Map.addLayer(protected_areas, {color: 'yellow'}, 'Protected Areas')
+// under the objects tab in the inspector it shows the data for every layer under the protected areas feature collections
+//Egmont national park
+//dept of conservation manages it
+//designated National park
+
+// lets find the number of protected areas
+print ('No of protected areas:', protected_areas.size()) //307004
+// lets select only features from cat 2 national parks under the IUCN_CAT property
+print (protected_areas)
+print (protected_areas.first()) // looking just at the first feature is much faster
+print (protected_areas.limit(5)) // or we can look at a list of the first 5
+// Filter only for level II protected areas
+var iucn_pa = protected_areas.filter(ee.Filter.eq('IUCN_CAT', 'II'));
+//Map.addLayer(iucn_pa, {color: 'lime'}, 'National Parks')
+
+// filter date for 1980s
+var iucn_pre1980 = protected_areas.filter(ee.Filter.lte('STATUS_YR', 1980));
+//Map.addLayer(iucn_pre1980, {color: 'white'}, 'PAs in 1980');
+print ('No of protected areas pre 1980s:', iucn_pre1980.size()) //64510
+// filter date for greater than or equal to 2010s
+var iucn_post2010 = protected_areas.filter(ee.Filter.gte('STATUS_YR', 2010));
+//Map.addLayer(iucn_post2010, {color: 'brown'}, 'PAs in 2010 or more');
+
+// lets do a spatial filter for protected areas in new zealand
+// lets import a country dataset
+var countries = ee.FeatureCollection("USDOS/LSIB_SIMPLE/2017");
+print ('countries', countries); // look at it. // how to find a country name?
+//Map.addLayer(countries,{color: 'grey'}, 'raw countries'); // look at it.
+// New Zealand only
+var nz = countries.filter(ee.Filter.equals('country_na', 'New Zealand'));
+print (nz);
+//Map.addLayer(nz); // look at it.
+
+// Spatial filter PAs only in NZ
+var nz_pas = protected_areas.filter(ee.Filter.bounds(nz))
+print ('Number of PAs in NZ:', nz_pas.size())
+//Map.addLayer(nz_pas, {color:'00FFAF'}, 'NZ PAs only')
+
+// lets find cat 2 parks in NZ
+// Link them all into one statement
+var nz_national_parks = protected_areas
+    .filter(ee.Filter.eq('IUCN_CAT', 'II')) // filter only NPs
+    .filter(ee.Filter.bounds(nz)) // filter to NZ
+
+print ('Number of National Parks in NZ:', nz_national_parks.size()) //18
+
+//COMPUTATIONS IN EARTH ENGINE
+
+// Change opacity
+Map.addLayer(dataset, elevationVis, 'Elevation', true, 0.6);
+print (dataset)
+
+//lets add a constant
+//Computation
+print (dataset) 
+var srtm_fixed = dataset.add(100)
+Map.addLayer(srtm_fixed, elevationVis, 'fixed srtm')
+
+//image thresholding for any pixel greater than 1500 elevation
+var elevGt1500 = dataset.gt(1500) 
+//Map.addLayer(elevGt1500) // Binary white == true
+
+//use selfmask to exclude 0 values
+var elevGt1500 = dataset.gt(1500).selfMask() 
+//Map.addLayer(elevGt1500) 
+Map.addLayer(elevGt1500.selfMask(), {palette:'fuchsia'}, 'gt 1500m', true, 0.7) 
+
+//use the algorithm slope, from the terrain set of functions,  so that we can view just how steep the sides of Mt Taranaki are.
+// apply complex algorithm
+// Use terrain, an algorithm that returns several topographic variables from an elevation image
+var terrain = ee.Terrain.products(dataset);
+print ('terrain', terrain ) // print it to see what's inside
+
+// make images from the bands we are interested in
+var slope = terrain.select(['slope']) 
+var hillshade = terrain.select(['hillshade'])
+//Map.addLayer (hillshade)
+//Map.addLayer (slope, {palette: ['white', 'darkred', 'black'], min:0, max:45}, 'slope')
+
+//region reducers
+//lets calculate avrg slope, max and min elevation and how much area above 1500m occurs inside the national park
+// Find Taranaki NP
+var taranaki = protected_areas.filter(ee.Filter.eq('NAME', 'Egmont National Park'));
+Map.addLayer(taranaki, {color: 'orange'}, 'Mt Taranaki')
+
+// Apply a spatial reducer to estimate mean slope
+var slopeOutput = slope.reduceRegion({
+  reducer: ee.Reducer.mean(), // we compute the mean of all slope pixel values in the national park
+  geometry: taranaki,
+  scale:90 // pixel size in metres - get this from the metadata (ie. search for it)
+})
+print ('slopeOutput', slopeOutput)// mean slope: 10.036223266342436
+
+// Try clipping to see if it's any different.
+var taranakiSlope = slope.clip(taranaki)
+Map.addLayer (taranakiSlope, {palette: ['white', 'darkred', 'black'], min:0, max:45}, 'taranaki slope')
+
+var slopeOutput2 = taranakiSlope.reduceRegion({
+  reducer: ee.Reducer.mean(), // we compute the mean of all slope pixel values in the national park
+  geometry: taranaki,
+  scale:90 // pixel size in metres - get this from the metadata (ie. search for it)
+})
+print ('slopeOutput2', slopeOutput2) // same answer
+
+// Use reduce regions with a different reducer (Max)
+var elevOutput_Max = dataset.reduceRegion({
+  reducer: ee.Reducer.max(), // we compute the max of all pixel values in the national park
+  geometry: taranaki,
+  scale:90 // pixel size in metres - get this from the metadata (ie. search for it)
+})
+print ('elevOutput_Max', elevOutput_Max) //elevation: 2484
+
+// Use reduce regions with a different reducer (min)
+var elevOutput_Min = dataset.reduceRegion({
+  reducer: ee.Reducer.min(), // we compute the min of all slope pixel values in the national park
+  geometry: taranaki,
+  scale:90 // pixel size in metres - get this from the metadata (ie. search for it)
+})
+print ('elevOutput_Min', elevOutput_Min) //elevation: 108
+
+// Use reduce regions with a different reducer
+var elevOutput_MinMax = dataset.reduceRegion({
+  reducer: ee.Reducer.minMax(), // we compute both the min and max of all slope pixel values in the national park
+  geometry: taranaki,
+  scale:90 // pixel size in metres - get this from the metadata (ie. search for it)
+})
+print ('elevOutput_MinMax', elevOutput_MinMax) // min 108 and max 2484
+
+//  finding the area of the national park above our 1500m threshold
+// Get area of >1500m
+var areaGt1500m = elevGt1500 // binary 1 == yes
+  .multiply (ee.Image.pixelArea()) // get the area of each pixel
+  .reduceRegion({
+  reducer: ee.Reducer.sum(), // sum all pixel areas together
+  geometry: taranaki,
+  scale:90 
+})
+print ('The area of Taranaki above 1500m (m2)', areaGt1500m) // in square metres 11474443.340820312
+print ('The area of Taranaki above 1500m (km2)', ee.Number(areaGt1500m.get('elevation')).divide(1000 * 1000)) // in square kilometres 11.474443340820313
+
+//WORLDCLIM
+var datasetClim = ee.ImageCollection('WORLDCLIM/V1/MONTHLY');
+print (datasetClim) // 12 images where each one is a month
+
+
+// Get two months
+var jan_climate = ee.Image ("WORLDCLIM/V1/MONTHLY/01")
+var july_climate = ee.Image ("WORLDCLIM/V1/MONTHLY/07")
+
+
+// Select their average temperature bands
+var jan_climate_avg = jan_climate.select('tavg').multiply(0.1); // get average band
+var july_climate_avg = july_climate.select('tavg').multiply(0.1);
+
+
+// Set vis parameters
+var meanTemperatureVis = {
+  min: -40,
+  max: 30,
+  palette: ['blue', 'purple', 'cyan', 'green', 'yellow', 'red'],
+};
+
+Map.addLayer(jan_climate_avg, meanTemperatureVis, 'janClimate')
+Map.addLayer(july_climate_avg, meanTemperatureVis, 'julyClimate')
+// Inspect them!
+
+// Note the pixel scaling error and fix it
+// Need to divide all pixel values by 10, or multiply by .1 (.multiply(0.1)
+// We want to reduce to get the yearly average
+var annualMeanTemperature = datasetClim
+  .select('tavg')
+  .mean() // this is the reducer
+  .multiply(0.1); // scale pixels to real values
+
+Map.setCenter(71.7, 52.4, 3);
+Map.addLayer(annualMeanTemperature, meanTemperatureVis, 'Mean Annual Temperature');
+
+//import landsat imagery
+var datasetLandsat = ee.ImageCollection('LANDSAT/LC08/C02/T1_TOA')
+  .filterDate('2017-01-01', '2017-12-31'); // only images from 2017
+var trueColour = datasetLandsat.select(['B4', 'B3', 'B2']);
+var trueColourVis = {
+  min: 0.0,
+  max: 0.4,
+};
+Map.setCenter(146.746, -19.529, 9);
+Map.addLayer(trueColour, trueColourVis, 'True Colour Landsat');
+
+// Let's use reduce these
+var LandsatMedian = trueColour.median()
+Map.addLayer(LandsatMedian, trueColourVis, 'True Color Median');
+```
+
+## Workshop 2 Assignment : Map of Deep Ocean Marine Ecosystems
+
+``` bash
+//ASSIGNMENT 1 MODULE 4
+
+Map.setOptions('SATELLITE') //switch map view to satellite imagery
+
+// Import the ETOPO1 data
+var etopoRaw = ee.Image("NOAA/NGDC/ETOPO1");
+print('raw ETOPO1 properties', etopoRaw);
+//Map.addLayer (etopoRaw)
+
+// Select the bedrock band of this imagery
+var bedrock = etopoRaw.select('bedrock');
+//Map.addLayer (bedrock);
+
+// thresholding for Hadal (>6000m)
+var hadal = bedrock.lt(-6000).selfMask();
+
+//thresholding for Abyssal Plains (3000-6000m)
+var abyssal = bedrock.lte(-3000).and(bedrock.gte(-6000)).selfMask();
+
+//thresholding for Continental Island Slopes (250-3000m)
+var continentalIsland = bedrock.lte(-250).and(bedrock.gte(-3000)).selfMask();
+
+//thresholding for Submarine Canyons (deeper than 200m, slopes of >6 degrees)
+//but first we must find the slope
+var terrain = ee.Terrain.products(bedrock);
+print ('terrain', terrain ) // print it to see what's inside
+var slope = terrain.select(['slope']) // this is slope
+//Map.addLayer (slope, {palette: ['white', 'darkred', 'black'], min:0, max:45}, 'slope')
+var hillshade = terrain.select(['hillshade']) // this is hillshade
+//Map.addLayer (hillshade)
+//now we threshold
+var canyons = bedrock.lt(-3000).and(slope.gt(6)).selfMask();
+
+// Add these variables as layers
+var bedrockVis = {
+  hadal: '40004b',
+  abyssal: '0571b0',  
+  continentalIsland: '92c5de',   
+  canyons: 'f46d43',  
+};//set the visual parameters
+
+Map.addLayer(hadal, {palette:'bd0026'}, 'Hadal (>6000m)'); // add hadal layer
+Map.addLayer(abyssal, {palette:'fd8d3c'}, 'Abyssal Plains (3000-6000m)'); // add abyssal plains layer
+Map.addLayer(continentalIsland, {palette:'ffffcc'}, 'Continental Island Slopes (250-3000m)'); // add continental island slopes layer
+Map.addLayer(canyons, {palette:'800026'}, 'Submarine Canyons (deeper than 200m, slopes of >6 degrees)'); // add submarine canyons layer
+
+// Now lets add the vector dataset (protected areas, filtered to marine protected areas)
+// // now add data on marine protected areas
+var wdpa = ee.FeatureCollection("WCMC/WDPA/current/polygons")
+print(wdpa)
+print (wdpa.limit(5))// this didnt allow me to determine what the name of the REALM property was for mpas so i clicked on a known mpa (paravi dupatha or pigeon island national park in sri lanka) and found the realm name was 'Marine'
+//Map.addLayer(wdpa, {color: 'cyan'}, 'Global Protected Areas')
+
+
+// Filter for only Marine Protected Areas
+var mpa = wdpa.filter(ee.Filter.eq('REALM', 'Marine'));
+//add to map
+Map.addLayer(mpa, {color: 'cyan'}, 'Marine Protected Areas')
+```
